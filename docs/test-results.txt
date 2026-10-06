@@ -1,0 +1,66 @@
+$ anchor build && cargo test -p core-staking
+     Running unittests src/lib.rs (target/debug/deps/core_staking-55274591a1633939)
+
+running 5 tests
+test test_id ... ok
+test utils::tests::boundary_detection ... ok
+test utils::tests::rewards_prorate_per_second ... ok
+test utils::tests::window_open_between_hours ... ok
+test utils::tests::staked_counter_delta ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/compute_units.rs (target/debug/deps/compute_units-9642f9041240ccc2)
+
+running 1 test
+test report_compute_units ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+
+     Running tests/oracle.rs (target/debug/deps/oracle-9bcb18de525c517f)
+
+running 11 tests
+test oracle_account_layout_matches_mpl_core ... ok
+test late_crank_updates_state_without_reward ... ok
+test crank_rewarded_near_boundary ... ok
+test crank_is_permissionless_but_only_on_state_change ... ok
+test crank_reward_skipped_when_vault_empty ... ok
+test oracle_is_enforced_by_core_not_just_our_program ... ok
+test transfer_allowed_during_trading_hours ... ok
+test transfer_rejected_outside_trading_hours ... ok
+test staked_nft_blocked_even_in_trading_hours ... ok
+test staking_flows_unaffected_by_closed_oracle ... ok
+test initialize_seeds_oracle_from_clock ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+
+     Running tests/staking.rs (target/debug/deps/staking-3647b9acf1508c11)
+
+running 18 tests
+test initialize_creates_collection_with_stats_and_oracle ... ok
+test claim_without_stake_fails ... ok
+test admin_mints_into_collection_and_non_admin_cannot ... ok
+test only_owner_can_stake ... ok
+test stake_freezes_asset_and_increments_total_staked ... ok
+test non_owner_cannot_unstake ... ok
+test non_owner_cannot_burn ... ok
+test non_owner_cannot_claim ... ok
+test claim_rewards_keeps_nft_staked_and_frozen ... ok
+test burn_staked_nft_pays_bonus_and_burns ... ok
+test burn_works_inside_freeze_period ... ok
+test claim_twice_does_not_double_count ... ok
+test restake_after_unstake ... ok
+test total_staked_tracks_multiple_assets ... ok
+test asset_from_another_collection_is_rejected ... ok
+test unstaked_nft_cannot_be_burned_for_bonus ... ok
+test unstake_respects_freeze_period ... ok
+test unstake_pays_rewards_thaws_and_cleans_up ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+   Doc-tests core_staking
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
