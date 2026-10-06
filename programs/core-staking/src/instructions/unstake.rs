@@ -89,10 +89,11 @@ pub fn handler(ctx: Context<Unstake>) -> Result<()> {
     let seeds: &[&[u8]] = &[CONFIG_SEED, collection_key.as_ref(), &[a.config.bump]];
     let config_info = a.config.to_account_info();
 
-    let amount = pending_rewards(
+    let (amount, _) = pending_rewards(
         a.config.rewards_per_day,
         a.stake_record.last_claimed_at,
         now,
+        a.stake_record.reward_remainder,
     )?;
     mint_rewards(
         &a.token_program,

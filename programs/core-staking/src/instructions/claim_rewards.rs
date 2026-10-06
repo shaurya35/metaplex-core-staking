@@ -67,10 +67,11 @@ pub fn handler(ctx: Context<ClaimRewards>) -> Result<()> {
     assert_asset(&a.asset, &a.owner.key(), &a.collection.key())?;
 
     let now = Clock::get()?.unix_timestamp;
-    let amount = pending_rewards(
+    let (amount, remainder) = pending_rewards(
         a.config.rewards_per_day,
         a.stake_record.last_claimed_at,
         now,
+        a.stake_record.reward_remainder,
     )?;
     require!(amount > 0, StakingError::NothingToClaim);
 
@@ -86,6 +87,7 @@ pub fn handler(ctx: Context<ClaimRewards>) -> Result<()> {
     )?;
 
     ctx.accounts.stake_record.last_claimed_at = now;
+    ctx.accounts.stake_record.reward_remainder = remainder;
 
     emit!(RewardsClaimed {
         owner: ctx.accounts.owner.key(),

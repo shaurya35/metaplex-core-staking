@@ -39,6 +39,22 @@ pub const CORE_REJECTED: &str =
 
 pub type TxResult = Result<TransactionMetadata, FailedTransactionMetadata>;
 
+/// Initialize args used by every `Env::new*` constructor.
+pub fn default_args() -> InitializeArgs {
+    InitializeArgs {
+        name: "Staking Collection".into(),
+        uri: "https://example.com/collection.json".into(),
+        rewards_per_day: REWARDS_PER_DAY,
+        freeze_period: FREEZE_PERIOD,
+        burn_bonus: BURN_BONUS,
+        crank_reward: CRANK_REWARD,
+        crank_window: CRANK_WINDOW,
+        open_hour: 9,
+        close_hour: 17,
+        vault_funding: VAULT_FUNDING,
+    }
+}
+
 pub struct Env {
     pub svm: LiteSVM,
     pub admin: Keypair,
@@ -81,6 +97,14 @@ impl Env {
     }
 
     pub fn new_at(ts: i64) -> Self {
+        let (env, res) = Self::try_new(ts, default_args());
+        res.expect("initialize");
+        env
+    }
+
+    /// Like `new_at` but with custom initialize args; returns the initialize result
+    /// instead of panicking so tests can assert on rejected configs.
+    pub fn try_new(ts: i64, args: InitializeArgs) -> (Self, TxResult) {
         let mut svm = LiteSVM::new();
         let root = env!("CARGO_MANIFEST_DIR");
         svm.add_program(
@@ -113,21 +137,7 @@ impl Env {
 
         let init = Instruction::new_with_bytes(
             core_staking::ID,
-            &ix::Initialize {
-                args: InitializeArgs {
-                    name: "Staking Collection".into(),
-                    uri: "https://example.com/collection.json".into(),
-                    rewards_per_day: REWARDS_PER_DAY,
-                    freeze_period: FREEZE_PERIOD,
-                    burn_bonus: BURN_BONUS,
-                    crank_reward: CRANK_REWARD,
-                    crank_window: CRANK_WINDOW,
-                    open_hour: 9,
-                    close_hour: 17,
-                    vault_funding: VAULT_FUNDING,
-                },
-            }
-            .data(),
+            &ix::Initialize { args }.data(),
             acc::Initialize {
                 admin: env.admin.pubkey(),
                 collection: env.collection,
@@ -142,9 +152,8 @@ impl Env {
             .to_account_metas(None),
         );
         let admin = env.admin.insecure_clone();
-        env.send(&[init], &admin, &[&collection])
-            .expect("initialize");
-        env
+        let res = env.send(&[init], &admin, &[&collection]);
+        (env, res)
     }
 
     // ----- runtime helpers -------------------------------------------------

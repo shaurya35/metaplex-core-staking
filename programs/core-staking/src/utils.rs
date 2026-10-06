@@ -14,13 +14,24 @@ use crate::{constants::*, error::StakingError};
 // ---------------------------------------------------------------------------
 
 /// Rewards accrued between `from` and `to` at `rewards_per_day`, pro-rated per second.
-pub fn pending_rewards(rewards_per_day: u64, from: i64, to: i64) -> Result<u64> {
+///
+/// `remainder` is the sub-unit leftover (numerator over `SECONDS_PER_DAY`) carried from the
+/// previous payout. Returns `(amount, new_remainder)`, so many small claims add up to
+/// exactly what one large claim would pay.
+pub fn pending_rewards(
+    rewards_per_day: u64,
+    from: i64,
+    to: i64,
+    remainder: u64,
+) -> Result<(u64, u64)> {
     let elapsed = to.saturating_sub(from).max(0) as u128;
-    let amount = elapsed
+    let accrued = elapsed
         .checked_mul(rewards_per_day as u128)
-        .ok_or(StakingError::Overflow)?
-        / SECONDS_PER_DAY as u128;
-    u64::try_from(amount).map_err(|_| StakingError::Overflow.into())
+        .and_then(|v| v.checked_add(remainder as u128))
+        .ok_or(StakingError::Overflow)?;
+    let amount =
+        u64::try_from(accrued / SECONDS_PER_DAY as u128).map_err(|_| StakingError::Overflow)?;
+    Ok((amount, (accrued % SECONDS_PER_DAY as u128) as u64))
 }
 
 /// Seconds since 00:00 UTC for a unix timestamp.
@@ -164,17 +175,28 @@ mod tests {
 
     #[test]
     fn rewards_prorate_per_second() {
-        assert_eq!(pending_rewards(86_400, 0, 1).unwrap(), 1);
+        assert_eq!(pending_rewards(86_400, 0, 1, 0).unwrap(), (1, 0));
         assert_eq!(
-            pending_rewards(1_000_000, 0, SECONDS_PER_DAY).unwrap(),
-            1_000_000
+            pending_rewards(1_000_000, 0, SECONDS_PER_DAY, 0).unwrap(),
+            (1_000_000, 0)
         );
         assert_eq!(
-            pending_rewards(1_000_000, 0, SECONDS_PER_DAY / 2).unwrap(),
-            500_000
+            pending_rewards(1_000_000, 0, SECONDS_PER_DAY / 2, 0).unwrap(),
+            (500_000, 0)
         );
-        assert_eq!(pending_rewards(1_000_000, 100, 50).unwrap(), 0);
-        assert!(pending_rewards(u64::MAX, 0, i64::MAX).is_err());
+        assert_eq!(pending_rewards(1_000_000, 100, 50, 0).unwrap(), (0, 0));
+        assert!(pending_rewards(u64::MAX, 0, i64::MAX, 0).is_err());
+    }
+
+    #[test]
+    fn rewards_carry_remainder() {
+        // 1.5 units/s: two 1s claims pay 1 then 2 (carrying the half), same as one 2s claim.
+        let rate = 3 * SECONDS_PER_DAY as u64 / 2;
+        let (a1, r1) = pending_rewards(rate, 0, 1, 0).unwrap();
+        assert_eq!((a1, r1), (1, 43_200));
+        let (a2, r2) = pending_rewards(rate, 1, 2, r1).unwrap();
+        assert_eq!((a2, r2), (2, 0));
+        assert_eq!(a1 + a2, pending_rewards(rate, 0, 2, 0).unwrap().0);
     }
 
     #[test]

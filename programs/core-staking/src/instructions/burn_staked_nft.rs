@@ -79,10 +79,11 @@ pub fn handler(ctx: Context<BurnStakedNft>) -> Result<()> {
     assert_asset(&a.asset, &a.owner.key(), &a.collection.key())?;
 
     let now = Clock::get()?.unix_timestamp;
-    let pending = pending_rewards(
+    let (pending, _) = pending_rewards(
         a.config.rewards_per_day,
         a.stake_record.last_claimed_at,
         now,
+        a.stake_record.reward_remainder,
     )?;
     let amount = pending
         .checked_add(a.config.burn_bonus)

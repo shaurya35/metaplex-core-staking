@@ -95,6 +95,7 @@ pub fn handler(ctx: Context<Stake>) -> Result<()> {
         collection: collection_key,
         staked_at: now,
         last_claimed_at: now,
+        reward_remainder: 0,
         bump: ctx.bumps.stake_record,
     });
 
