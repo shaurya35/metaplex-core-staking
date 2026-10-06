@@ -8,7 +8,7 @@ All program PDAs are derived from the collection address, so one deployment can 
 |---|---|---|---|
 | `Config` | `["config", collection]` | this program | Settings. **Update authority of the Collection** and authority of every delegate plugin on staked assets. Mint authority of the reward token. |
 | Reward mint | `["rewards", config]` | SPL Token | 6-decimal reward token. |
-| `StakeRecord` | `["stake", asset]` | this program | `owner`, `asset`, `collection`, `staked_at`, `last_claimed_at`. Created on stake, closed on unstake / burn. |
+| `StakeRecord` | `["stake", asset]` | this program | `owner`, `asset`, `collection`, `staked_at`, `last_claimed_at`, `reward_remainder` (sub-unit carry, < 86400). Created on stake, closed on unstake / burn. |
 | `Oracle` | `["oracle", collection]` | this program | `OracleValidation::V1 { create, transfer, burn, update }`, which MPL Core reads at offset 8. |
 | Vault | `["vault", collection]` | System | Holds lamports that pay oracle crankers. |
 | Collection | keypair | MPL Core | `Attributes { total_staked }` plugin and an `Oracle` external plugin adapter. |
@@ -35,7 +35,8 @@ owner ──stake──────────▶ program
                            └─ init StakeRecord(staked_at = last_claimed_at = now)
 
 owner ──claim_rewards──▶ program
-                           ├─ pending = (now - last_claimed_at) * rewards_per_day / 86400
+                           ├─ accrued = (now - last_claimed_at) * rewards_per_day + reward_remainder
+                           ├─ pending = accrued / 86400, reward_remainder = accrued % 86400
                            ├─ mint_to(owner ATA, pending)                                  [config signs]
                            └─ last_claimed_at = now        (asset untouched: still frozen)
 
@@ -88,6 +89,8 @@ The plugin lives on the Collection, so MPL Core enforces it for every transfer o
 - **Thaw before remove or burn.** MPL Core rejects removal of a frozen FreezeDelegate, and it rejects burns of frozen assets, so the config PDA first sets `frozen: false`.
 - **Minting is admin-gated.** If anyone could mint, they could mint unlimited NFTs and farm rewards.
 - **The crank only pays for real state changes.** `update_oracle` fails with `OracleAlreadyUpToDate` when nothing changes, so a cranker can be paid at most once per boundary. A late crank still fixes stale state, but it is not paid. The vault never drops below rent exemption, and an underfunded vault skips the reward rather than failing.
+- **No reward lost to rounding.** Each claim rounds down to whole base units, and the remainder (`accrued % 86400`) is stored on the `StakeRecord`. Many small claims therefore add up to exactly one large claim (QA ISSUE-001).
+- **The vault stays rent exempt.** `initialize` and `fund_vault` reject a deposit that would leave the 0-byte vault below the rent-exempt minimum. LiteSVM doesn't check rent on zero-data accounts, but a real cluster does (QA ISSUE-002).
 - **Transfer is `Pass` when open, not `Approved`.** The adapter only has the `CanReject` capability, so "no objection" is the right signal and it does not override other plugins.
 - **Mirrored oracle types.** `state/oracle.rs` copies `OracleValidation` and `ExternalValidationResult` so the account can derive Anchor traits. `oracle_account_layout_matches_mpl_core` deserializes the raw bytes with the real `mpl_core` types to prove the layout matches.
 
@@ -106,3 +109,4 @@ The plugin lives on the Collection, so MPL Core enforces it for every transfer o
 | 6008 | `OracleAlreadyUpToDate` | crank with no state change |
 | 6009 | `InvalidHours` | `open_hour >= close_hour` or `close_hour > 24` |
 | 6010 | `InvalidParam` | negative freeze period / crank window |
+| 6011 | `VaultBelowRentExempt` | a vault deposit would leave the vault below the rent-exempt minimum |

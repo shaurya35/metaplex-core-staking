@@ -9,7 +9,7 @@ Week 5 assignment (Metaplex): an Anchor program that stakes [MPL Core](https://d
 | **1.3** Collection-level stats | `stake` / `unstake` / `burn_staked_nft` | `"total_staked"` Attribute on the **Collection**: +1 on stake, −1 on unstake and burn. |
 | **2** Oracle: time-based transfer | `update_oracle`, `transfer_nft` | Oracle adapter on the Collection (Transfer only, `CanReject`) reads a PDA that a permissionless, rewarded crank flips between `Pass` (09:00–17:00 UTC) and `Rejected`. |
 
-All 35 tests run locally against the **real MPL Core program** in LiteSVM, and the clock moves forward to test rewards, freeze periods and trading hours. No wallet, RPC or devnet is needed.
+All 41 tests run locally against the **real MPL Core program** in LiteSVM, and the clock moves forward to test rewards, freeze periods and trading hours. No wallet, RPC or devnet is needed.
 
 ![Tests passing](docs/test-results.png)
 
@@ -21,7 +21,7 @@ All 35 tests run locally against the **real MPL Core program** in LiteSVM, and t
 | `fund_vault(amount)` | anyone | Tops up the lamport vault that pays crankers. |
 | `mint_nft(name, uri)` | admin | Mints a Core asset into the collection for any owner. |
 | `stake` | owner | Adds `FreezeDelegate{frozen:true}` + `BurnDelegate` (authority = config PDA), opens a `StakeRecord`, and does `total_staked += 1`. |
-| `claim_rewards` | owner | Mints `elapsed × rewards_per_day / 86400` and resets `last_claimed_at`. The NFT stays frozen. |
+| `claim_rewards` | owner | Mints `elapsed × rewards_per_day / 86400` (the sub-unit remainder carries over to the next claim) and resets `last_claimed_at`. The NFT stays frozen. |
 | `unstake` | owner | Only after `freeze_period`. Pays pending rewards, thaws, removes both plugins, does `total_staked -= 1`, and closes the record. |
 | `burn_staked_nft` | owner | Pays pending + `burn_bonus`, thaws, burns via BurnDelegate, does `total_staked -= 1`, and closes the record. |
 | `update_oracle` | anyone | Sets Transfer to `Pass` in hours and `Rejected` outside them. It fails if nothing changes. It pays `crank_reward` from the vault when called within `crank_window` of 09:00 or 17:00. |
@@ -45,6 +45,8 @@ programs/core-staking/
     ├── common/mod.rs           # LiteSVM harness: loads both programs, ix builders, clock warp
     ├── staking.rs              # Task 1 (18 tests)
     ├── oracle.rs               # Task 2 (11 tests)
+    ├── rewards_regression_1.rs # QA ISSUE-001: reward remainder carry
+    ├── vault_regression_1.rs   # QA ISSUE-002: vault rent-exempt guard
     ├── compute_units.rs        # CU report
     └── fixtures/mpl_core.so    # real MPL Core program binary
 ```
@@ -79,15 +81,23 @@ The full output is in [docs/test-results.txt](docs/test-results.txt).
 - A crank at 17:02 or 09:00 receives `crank_reward`. A late crank at 21:00 fixes the state but isn't paid. An underfunded vault skips the payout and never drops below rent, and `fund_vault` refills it.
 - Staked NFTs can't be transferred even during trading hours, and stake, claim, unstake and burn all work while transfers are closed.
 
+**QA regressions**
+- `rewards_regression_1.rs`: 100 one-second claims pay exactly what one 100-second claim pays, and the leftover remainder is still paid on unstake.
+- `vault_regression_1.rs`: a vault deposit that would leave the vault below the rent-exempt minimum fails with `VaultBelowRentExempt`. Top-ups of an already funded vault still work.
+
+### QA
+
+A `/qa` pass probed for ways to escape staking by calling MPL Core directly, plus rent and rounding edge cases. It fixed 2 medium issues and deferred 1 low one. The full report is in [docs/qa-report.md](docs/qa-report.md).
+
 ### Compute units
 
 | Instruction | Compute units |
 |---|---|
 | `mint_nft` | 22,179 |
-| `stake` | 64,840 |
-| `claim_rewards` (creates ATA) | 50,934 |
-| `unstake` | 86,702 |
-| `burn_staked_nft` | 68,430 |
+| `stake` | 61,891 |
+| `claim_rewards` (creates ATA) | 46,553 |
+| `unstake` | 85,271 |
+| `burn_staked_nft` | 66,999 |
 | `update_oracle` (paid crank) | 11,148 |
 | `transfer_nft` (oracle check) | 18,627 |
 

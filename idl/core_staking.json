@@ -1310,6 +1310,11 @@
       "code": 6010,
       "name": "InvalidParam",
       "msg": "Invalid config parameter"
+    },
+    {
+      "code": 6011,
+      "name": "VaultBelowRentExempt",
+      "msg": "Vault deposit would leave the vault below the rent-exempt minimum"
     }
   ],
   "types": [
@@ -1615,6 +1620,13 @@
           {
             "name": "last_claimed_at",
             "type": "i64"
+          },
+          {
+            "name": "reward_remainder",
+            "docs": [
+              "Sub-unit reward leftover (numerator over 86_400) carried between claims."
+            ],
+            "type": "u64"
           },
           {
             "name": "bump",
