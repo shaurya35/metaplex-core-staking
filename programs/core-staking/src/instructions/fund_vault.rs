@@ -3,7 +3,7 @@ use anchor_lang::{
     system_program::{transfer, Transfer},
 };
 
-use crate::{constants::*, state::Config};
+use crate::{constants::*, state::Config, utils::assert_vault_deposit_ok};
 
 #[derive(Accounts)]
 pub struct FundVault<'info> {
@@ -28,6 +28,7 @@ pub struct FundVault<'info> {
 
 /// Anyone can top up the lamport vault that pays oracle crankers.
 pub fn handler(ctx: Context<FundVault>, amount: u64) -> Result<()> {
+    assert_vault_deposit_ok(ctx.accounts.vault.lamports(), amount)?;
     transfer(
         CpiContext::new(
             ctx.accounts.system_program.key(),

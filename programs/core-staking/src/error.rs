@@ -24,4 +24,6 @@ pub enum StakingError {
     InvalidHours,
     #[msg("Invalid config parameter")]
     InvalidParam,
+    #[msg("Vault deposit would leave the vault below the rent-exempt minimum")]
+    VaultBelowRentExempt,
 }

@@ -16,7 +16,7 @@ use crate::{
     constants::*,
     error::StakingError,
     state::{Config, ExternalValidationResult, Oracle, OracleValidation},
-    utils::is_transfer_window_open,
+    utils::{assert_vault_deposit_ok, is_transfer_window_open},
 };
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
@@ -128,6 +128,7 @@ pub fn handler(ctx: Context<Initialize>, args: InitializeArgs) -> Result<()> {
     });
 
     if args.vault_funding > 0 {
+        assert_vault_deposit_ok(accounts.vault.lamports(), args.vault_funding)?;
         transfer(
             CpiContext::new(
                 accounts.system_program.key(),

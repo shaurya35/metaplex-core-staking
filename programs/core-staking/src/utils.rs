@@ -79,6 +79,19 @@ pub fn apply_staked_delta(mut attributes: Vec<Attribute>, delta: i64) -> Result<
     Ok(attributes)
 }
 
+/// The vault is a 0-byte system account: once it holds lamports it must be rent exempt,
+/// otherwise the runtime rejects the transaction with a generic rent error.
+pub fn assert_vault_deposit_ok(vault_lamports: u64, deposit: u64) -> Result<()> {
+    let post = vault_lamports
+        .checked_add(deposit)
+        .ok_or(StakingError::Overflow)?;
+    require!(
+        post >= Rent::get()?.minimum_balance(0),
+        StakingError::VaultBelowRentExempt
+    );
+    Ok(())
+}
+
 // ---------------------------------------------------------------------------
 // MPL Core account checks
 // ---------------------------------------------------------------------------
